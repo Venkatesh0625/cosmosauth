@@ -1,14 +1,17 @@
 
 const { cosmosjs } = window
+const crypto = require('crypto')
 const secp256k1 = require('secp256k1')
 
+import { sortObject } from './utils'
 var Buffer = require('buffer').Buffer
 const CHAIN_ID = "signed-message-v1"
+
 
 export function generateSignable(message) {
     let signableMessage = `${message.chain}\n${message.sender}\n${message.type}\n${message.item_hash}`
 
-    return {
+    let x = {
         chain_id: CHAIN_ID,
         account_number: "0",
         fee: {
@@ -25,6 +28,9 @@ export function generateSignable(message) {
             }
         }]
     }
+
+    window.xyz = x
+    return x
 }
 
 export async function sign(account, message) {
@@ -32,8 +38,11 @@ export async function sign(account, message) {
     let signable = generateSignable(message)
 
     const cosmos = cosmosjs.network("...", CHAIN_ID)
-    let signed = cosmos.sign(cosmos.newStdMsg(signable), Buffer.from(account.private_key, 'hex'))
+    let signed = cosmos.sign(signable, Buffer.from(account.private_key, 'hex'))
     message.signature = JSON.stringify(signed?.tx?.signatures?.[0])
+
+    console.log(message.signature.signature)
+    console.log("Status", secp256k1.ecdsaVerify(message.signature.signature, signable, message.address))
 
     return { message, signed }
 }
@@ -53,6 +62,19 @@ export const getAccount = async (mnemonic, path, prefix) => {
         'prefix': prefix,
         'path': path,
     }
+}
+
+export const verifyMessage = async (msg) => {
+    let signMessage = new Object;
+    signMessage = msg.json;
+
+    const json = JSON.stringify(sortObject(signMessage))
+        .replace(/&/g, '\\u0026')
+        .replace(/</g, '\\u003c')
+        .replace(/>/g, '\\u003e')
+
+    const hash = crypto.createHash('sha256').update(json).digest('hex');
+    const buf = Uint8Array.from(Buffer.from(hash, 'hex'))
 }
 
 export const path = "m/44'/118'/0'/0/0"
